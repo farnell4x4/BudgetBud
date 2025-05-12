@@ -2,7 +2,7 @@
 //  EditCategoryView.swift
 //  BudgetBud49,3
 //
-//  Created by Joshua Farnell on 4/21/25.
+//  Created by Joshua     on 4/21/25.
 //
 
 

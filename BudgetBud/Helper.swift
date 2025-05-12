@@ -2,7 +2,7 @@
 //  Helper.swift
 //  BudgetBud
 //
-//  Created by Joshua Farnell on 4/23/25.
+//  Created by Joshua     on 4/23/25.
 //
 
 import Foundation

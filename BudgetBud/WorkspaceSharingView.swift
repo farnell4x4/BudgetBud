@@ -2,7 +2,7 @@
 //  WorkspaceSharingView.swift
 //  BudgetBud
 //
-//  Created by Joshua Farnell on 5/9/25.
+//  Created by Joshua     on 5/9/25.
 //
 
 

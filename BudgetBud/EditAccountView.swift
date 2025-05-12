@@ -2,7 +2,7 @@
 //  EditAccountView.swift
 //  BudgetBud
 //
-//  Created by Joshua Farnell on 4/30/25.
+//  Created by Joshua     on 4/30/25.
 //
 
 
