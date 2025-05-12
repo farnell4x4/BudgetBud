@@ -1,3 +1,14 @@
+//
+//  PersistenceController.swift
+//  BudgetBud
+//
+//  Created by Joshua Farnell on 5/12/25.
+//
+
+
+// PersistenceController.swift
+// BudgetBud
+
 import CoreData
 import CloudKit
 
@@ -10,10 +21,12 @@ struct PersistenceController {
         container = NSPersistentCloudKitContainer(name: "BudgetBud")
 
         guard let storeDescription = container.persistentStoreDescriptions.first else {
-            fatalError("Missing persistent store description")//Thread 1: Fatal error: Missing persistent store description
+            fatalError("Missing persistent store description")
         }
 
-        storeDescription.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: "iCloud.com.BudgetBud.Clean")
+        storeDescription.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+            containerIdentifier: "iCloud.com.BudgetBud.Clean"
+        )
         storeDescription.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
         storeDescription.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
 

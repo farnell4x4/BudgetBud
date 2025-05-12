@@ -54,16 +54,12 @@ struct SettingsView: View {
                         }
                         if let workspace = currentWorkspace {
                             Button {
-                                print("***🔁 Share button tapped")
-                                Task { await shareWorkspace(workspace) }
+                                isShowingShareSheet = true
                             } label: {
                                 Label("Share Workspace", systemImage: "square.and.arrow.up")
                             }
-
-                            Text("Note: Tap this after creating a workspace and waiting ~5s for it to sync.")
-                                .font(.caption)
-                                .foregroundColor(.gray)
                         }
+
                     }
                     .padding(.vertical, 5)
                 }
@@ -108,10 +104,11 @@ struct SettingsView: View {
             .accentColor(Color("AccentColor"))
 
             .sheet(isPresented: $isShowingShareSheet) {
-                if let share = share, let container = shareContainer {
-                    WorkspaceSharingView(share: share, container: container)//
+                if let workspace = currentWorkspace {
+                    WorkspaceSharingHelper(workspace: workspace, context: viewContext)
                 }
             }
+
         }
         .alert("Restore Successful", isPresented: $showRestoreAlert) {
             Button("OK", role: .cancel) {}
@@ -128,21 +125,6 @@ struct SettingsView: View {
         }
     }
 
-    private func shareWorkspace(_ workspace: Workspace) async {
-        do {
-            try viewContext.save()
-            let (_, newShare, container) = try await PersistenceController.shared.container.share([workspace], to: nil)
-            newShare[CKShare.SystemFieldKey.title] = workspace.name as CKRecordValue?
-            let store = PersistenceController.shared.container.persistentStoreCoordinator.persistentStores.first!
-            try await PersistenceController.shared.container.persistUpdatedShare(newShare, in: store)
-            self.share = newShare
-            self.shareContainer = container
-            self.isShowingShareSheet = true
-            print("***✅ Successfully created share")
-        } catch {
-            print("***❌ Failed to share workspace: \(error)")
-        }
-    }
 
     private func deleteUserAccount() {
         let container = PersistenceController.shared.container
@@ -165,7 +147,7 @@ struct SettingsView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             container.persistentStoreCoordinator.persistentStores.forEach { store in
                 do {
-                    try container.persistentStoreCoordinator.destroyPersistentStore(at: store.url!, ofType: NSSQLiteStoreType, options: nil)
+                    try container.persistentStoreCoordinator.destroyPersistentStore(at: store.url!, ofType: NSSQLiteStoreType, options: nil)//'nil' requires a contextual type
                 } catch {
                     print("***❌ Failed to destroy store: \(error)")
                 }
