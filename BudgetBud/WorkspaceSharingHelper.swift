@@ -1,20 +1,10 @@
-//
-//  WorkspaceSharingHelper.swift
-//  BudgetBud
-//
-//  Created by Joshua Farnell on 5/12/25.
-//
-
-
 // WorkspaceSharingHelper.swift
 // BudgetBud
-// Created 2025-05-12
 
 import SwiftUI
 import CoreData
 import CloudKit
 
-/// Handles creation of CKShare and presentation of the CloudKit share sheet.
 struct WorkspaceSharingHelper: UIViewControllerRepresentable {
     let workspace: Workspace
     let context: NSManagedObjectContext
@@ -24,12 +14,13 @@ struct WorkspaceSharingHelper: UIViewControllerRepresentable {
     }
 
     func makeUIViewController(context: Context) -> UICloudSharingController {
-        let controller = UICloudSharingController { shareController, completion in
+        let controller = UICloudSharingController { _, completion in
             context.coordinator.createShare { result in
                 switch result {
-                case .success(let (share, container)):
+                case .success((let share, let container)):
                     completion(share, container, nil)
                 case .failure(let error):
+                    print("❌ Share creation failed: \(error)")
                     completion(nil, nil, error)
                 }
             }
@@ -52,39 +43,39 @@ struct WorkspaceSharingHelper: UIViewControllerRepresentable {
         }
 
         func createShare(completion: @escaping (Result<(CKShare, CKContainer), Error>) -> Void) {
-            Task {
-                do {
-                    try context.save()
-                    let container = NSPersistentCloudKitContainer.defaultDirectoryURL()
-                    let sharedContainer = PersistenceController.shared.container
+            do {
+                try context.save()
+                let container = PersistenceController.shared.container
 
-                    let (existingShare, newShare, cloudContainer) = try await sharedContainer.share([workspace], to: nil)
-                    newShare[CKShare.SystemFieldKey.title] = workspace.name as CKRecordValue?
-
-                    let store = sharedContainer.persistentStoreCoordinator.persistentStores.first!
-                    try await sharedContainer.persistUpdatedShare(newShare, in: store)
-
-                    completion(.success((newShare, cloudContainer)))
-                } catch {
-                    completion(.failure(error))
+                container.share([workspace], to: nil) { share, container, error in
+                    if let error = error {
+                        completion(.failure(error))
+                    } else if let share = share, let container = container {
+                        share[CKShare.SystemFieldKey.title] = self.workspace.name as CKRecordValue?
+                        completion(.success((share, container)))
+                    } else {
+                        completion(.failure(NSError(domain: "ShareError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unknown error."])))
+                    }
                 }
+            } catch {
+                completion(.failure(error))
             }
         }
 
         func itemTitle(for controller: UICloudSharingController) -> String? {
-            workspace.name ?? "Shared Workspace"
+            workspace.name ?? "BudgetBud Workspace"
         }
 
         func cloudSharingControllerDidStopSharing(_ controller: UICloudSharingController) {
-            print("🛑 Sharing stopped")
+            print("🛑 Sharing stopped.")
         }
 
         func cloudSharingController(_ controller: UICloudSharingController, failedToSaveShareWithError error: Error) {
-            print("❌ Failed to save share: \(error.localizedDescription)")
+            print("❌ Failed to save share: \(error)")
         }
 
         func cloudSharingController(_ controller: UICloudSharingController, didSave share: CKShare) {
-            print("✅ Share saved")
+            print("✅ Share saved: \(share.recordID)")
         }
     }
 }

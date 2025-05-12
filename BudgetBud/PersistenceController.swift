@@ -1,69 +1,57 @@
-//
-//  PersistenceController.swift
-//  BudgetBud
-//
-//  Created by Joshua Farnell on 5/12/25.
-//
-
-
 // PersistenceController.swift
 // BudgetBud
 
 import CoreData
 import CloudKit
 
-struct PersistenceController {
+final class PersistenceController {
     static let shared = PersistenceController()
 
     let container: NSPersistentCloudKitContainer
 
-    init(inMemory: Bool = false) {
+    private init(inMemory: Bool = false) {
         container = NSPersistentCloudKitContainer(name: "BudgetBud")
 
-        guard let storeDescription = container.persistentStoreDescriptions.first else {
-            fatalError("Missing persistent store description")
+        guard let storeDesc = container.persistentStoreDescriptions.first else {
+            fatalError("⚠️ Missing store description.")
         }
 
-        storeDescription.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-            containerIdentifier: "iCloud.com.BudgetBud.Clean"
+        storeDesc.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+            containerIdentifier: "iCloud.com.BudgetBud.2"
         )
-        storeDescription.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-        storeDescription.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+        storeDesc.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+        storeDesc.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
 
         if inMemory {
-            storeDescription.url = URL(fileURLWithPath: "/dev/null")
+            storeDesc.url = URL(fileURLWithPath: "/dev/null")
         }
 
         container.loadPersistentStores { _, error in
-            if let error = error as NSError? {
-                fatalError("Unresolved error \(error), \(error.userInfo)")
+            if let err = error {
+                fatalError("💥 Failed to load store: \(err.localizedDescription)")
             }
         }
 
+        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         container.viewContext.automaticallyMergesChangesFromParent = true
     }
 
     static var preview: PersistenceController = {
         let controller = PersistenceController(inMemory: true)
-        let viewContext = controller.container.viewContext
+        let context = controller.container.viewContext
 
-        let previewWorkspace = Workspace(context: viewContext)
-        previewWorkspace.id = UUID()
-        previewWorkspace.name = "Preview Workspace"
+        let workspace = Workspace(context: context)
+        workspace.id = UUID()
+        workspace.name = "Preview Workspace"
 
-        let account = Account(context: viewContext)
+        let account = Account(context: context)
         account.id = UUID()
         account.name = "Checking"
-        account.balance = 1500.00
+        account.balance = 1000.0
         account.isCredit = false
-        account.workspace = previewWorkspace
+        account.workspace = workspace
 
-        do {
-            try viewContext.save()
-        } catch {
-            fatalError("Unresolved error \(error)")
-        }
-
+        try? context.save()
         return controller
     }()
 }
