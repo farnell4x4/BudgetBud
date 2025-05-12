@@ -17,7 +17,7 @@ struct ContentView: View {
 
     @State private var selectedTab = 0
 
-    // Receipt scanning states
+    // Receipt scanning states!
     @State private var showReceiptScanner = false
     @State private var showAddTransactionFromScan = false
     @State private var isProcessingOCR = false
