@@ -1,86 +1,128 @@
-//
-//  ContentView.swift
-//  BudgetBud
-//
-//  Created by Joshua Farnell on 5/12/25.
-//
+
+//ContentView.swift
+//BudgetBud
+//Update on 2025-04-23, 22:00
 
 import SwiftUI
 import CoreData
 
 struct ContentView: View {
+    @AppStorage("selectedWorkspaceID") private var selectedWorkspaceID: String?
     @Environment(\.managedObjectContext) private var viewContext
 
     @FetchRequest(
-        sortDescriptors: [NSSortDescriptor(keyPath: \Item.timestamp, ascending: true)],
-        animation: .default)
-    private var items: FetchedResults<Item>
+        sortDescriptors: [NSSortDescriptor(keyPath: \Workspace.name, ascending: true)],
+        animation: .default
+    ) private var allWorkspaces: FetchedResults<Workspace>
+
+    @State private var selectedTab = 0
+
+    // Receipt scanning states
+    @State private var showReceiptScanner = false
+    @State private var showAddTransactionFromScan = false
+    @State private var isProcessingOCR = false
+    @State private var prefilledMerchant: String = ""
+    @State private var prefilledAmount: Double? = nil
+    
+    @State private var prefilledDate: Date = Date()
+    @State private var scannedReceiptImage: MyPlatformImage? = nil
+
+    private var selectedWorkspace: Workspace? {
+        guard let idString = selectedWorkspaceID, let uuid = UUID(uuidString: idString),
+              let workspace = allWorkspaces.first(where: { $0.id == uuid }) else {
+            return nil
+        }
+        return workspace
+    }
 
     var body: some View {
-        NavigationView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp!, formatter: itemFormatter)")
-                    } label: {
-                        Text(item.timestamp!, formatter: itemFormatter)
-                    }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
-                    }
-                }
-            }
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(context: viewContext)
-            newItem.timestamp = Date()
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
-            }
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            offsets.map { items[$0] }.forEach(viewContext.delete)
-
-            do {
-                try viewContext.save()
-            } catch {
-                // Replace this implementation with code to handle the error appropriately.
-                // fatalError() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
-                let nsError = error as NSError
-                fatalError("Unresolved error \(nsError), \(nsError.userInfo)")
+        Group {
+            if let workspace = selectedWorkspace {
+                MainTabs(workspace: workspace)
+            } else {
+                WorkspaceOnboardingView(onWorkspaceCreated: { newWorkspace in
+                    selectedWorkspaceID = newWorkspace.id?.uuidString
+                })
             }
         }
     }
 }
 
-private let itemFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .short
-    formatter.timeStyle = .medium
-    return formatter
-}()
+struct MainTabs: View {
+    var workspace: Workspace
+    @State private var selectedTab = 0
+    @State private var showReceiptScanner = false
+    @State private var showAddTransactionFromScan = false
+    @State private var isProcessingOCR = false
+    @State private var prefilledMerchant: String = ""
+    @State private var prefilledAmount: Double? = nil
+    @State private var prefilledDate: Date = Date()
+    @State private var scannedReceiptImage: MyPlatformImage? = nil
+    @Environment(\.managedObjectContext) private var viewContext
+    @State private var amountAlternatives: [Double] = []
+    @State private var keyboardVisible = false
 
-#Preview {
-    ContentView().environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
+
+
+    var body: some View {
+        ZStack {
+            TabView(selection: $selectedTab) {
+                NavigationView {
+                    AccountsView(workspace: workspace)
+                }
+                .navigationViewStyle(.stack)
+                .tabItem { Label("Accounts", systemImage: "creditcard") }
+                .tag(0)
+
+                NavigationView {
+                    BudgetView(workspace: workspace)
+                }
+                .navigationViewStyle(.stack)
+                .tabItem { Label("Budget", systemImage: "chart.pie") }
+                .tag(1)
+
+                NavigationView {
+                    TransactionsListView(workspace: workspace)
+                }
+                .navigationViewStyle(.stack)
+                .tabItem { Label("Transactions", systemImage: "list.bullet.rectangle.portrait") }
+                .tag(2)
+
+                NavigationView {
+                    SettingsView()
+                }
+                .navigationViewStyle(.stack)
+                .tabItem { Label("Settings", systemImage: "gear") }
+                .tag(3)
+            }
+
+            .accentColor(Color("AccentColor"))
+
+        }
+        
+        // observe both willShow/didShow and willHide/didHide notifications
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                    keyboardVisible = true
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidShowNotification)) { _ in
+                    keyboardVisible = true
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                    keyboardVisible = false
+                }
+                .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+                    keyboardVisible = false
+                }
+        .sheet(isPresented: $showAddTransactionFromScan) {
+            AddTransactionView(
+                workspace: workspace,
+                prefilledMerchant: prefilledMerchant,
+                prefilledAmount: prefilledAmount,
+                prefilledDate: prefilledDate,
+                prefilledTransactionType: .expense,
+                prefilledReceiptImage: scannedReceiptImage,
+                amountAlternatives: amountAlternatives 
+            )
+        }
+    }
 }
