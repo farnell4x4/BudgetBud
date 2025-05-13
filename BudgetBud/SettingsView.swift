@@ -1,6 +1,6 @@
 // SettingsView.swift
 // BudgetBud
-// Updated with async CloudKit sharing logic on 2025-05-09
+// Updated on 2025-05-12 with revised sharing view
 
 import SwiftUI
 import CoreData
@@ -18,27 +18,29 @@ struct SettingsView: View {
     @AppStorage("isSignedIn") private var isSignedIn: Bool = true
     @State private var showDeleteAccountAlert = false
 
-    @State private var share: CKShare? = nil
-    @State private var isShowingShareSheet: Bool = false
-    @State private var shareContainer: CKContainer? = nil
+    @State private var isShowingShareSheet = false
 
     @FetchRequest(
         sortDescriptors: [NSSortDescriptor(keyPath: \Workspace.name, ascending: true)],
         animation: .default
     ) private var workspaces: FetchedResults<Workspace>
 
-    var currentWorkspace: Workspace? {
-        workspaces.first(where: { $0.id?.uuidString == selectedWorkspaceID })
+    private var currentWorkspace: Workspace? {
+        guard let id = selectedWorkspaceID,
+              let uuid = UUID(uuidString: id),
+              let ws = workspaces.first(where: { $0.id == uuid })
+        else { return nil }
+        return ws
     }
 
     var body: some View {
         NavigationStack {
             List {
                 GroupBox(label: Label("Current Workspace", systemImage: "person.3.fill").font(.headline)) {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 5) {
                         if let workspace = currentWorkspace {
                             Text(workspace.name ?? "Unnamed Workspace")
-                                .foregroundColor(.primary)
+                                .font(.title3)
                         } else {
                             Text("No workspace selected.")
                                 .foregroundColor(.red)
@@ -46,24 +48,23 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 5)
                 }
-
+                
                 GroupBox(label: Label("Workspace Actions", systemImage: "arrow.2.squarepath").font(.headline)) {
                     VStack(alignment: .leading, spacing: 10) {
                         NavigationLink(destination: ManageWorkspacesView(selectedWorkspaceID: $selectedWorkspaceID)) {
                             Label("Manage Workspaces", systemImage: "rectangle.stack")
                         }
-                        if let workspace = currentWorkspace {
+                        if currentWorkspace != nil {
                             Button {
                                 isShowingShareSheet = true
                             } label: {
-                                Label("Share Workspace", systemImage: "square.and.arrow.up")
+                                Label("Share Workspace", systemImage: "person.crop.circle.badge.plus")
                             }
                         }
-
                     }
                     .padding(.vertical, 5)
                 }
-
+                
                 GroupBox(label: Label("Reports", systemImage: "doc.text.magnifyingglass").font(.headline)) {
                     VStack(alignment: .leading, spacing: 10) {
                         if let workspace = currentWorkspace {
@@ -78,53 +79,39 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 5)
                 }
-
-
+                
                 GroupBox(label: Label("User Settings", systemImage: "person.crop.circle").font(.headline)) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Button("Sign Out") {
-                            isSignedIn = false
-                        }
-                        .foregroundColor(Color("AccentColor"))
-
-                        Button("Delete My Account") {
-                            showDeleteAccountAlert = true
-                        }
-                        .foregroundColor(.red)
+                        Button("Sign Out") { isSignedIn = false }
+                            .foregroundColor(Color("AccentColor"))
+                        Button("Delete My Account") { showDeleteAccountAlert = true }
+                            .foregroundColor(.red)
                     }
                     .padding(.vertical, 5)
                 }
-
-             
-
-                
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Settings")
             .accentColor(Color("AccentColor"))
-
             .sheet(isPresented: $isShowingShareSheet) {
                 if let workspace = currentWorkspace {
-                    WorkspaceSharingHelper(workspace: workspace, context: viewContext)
+                    WorkspaceSharingView(workspace: workspace, context: viewContext)
                 }
             }
-
-        }
-        .alert("Restore Successful", isPresented: $showRestoreAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(restoreMessage)
-        }
-        .alert("Delete Account", isPresented: $showDeleteAccountAlert) {
-            Button("Delete", role: .destructive) {
-                deleteUserAccount()
+            .alert("Restore Successful", isPresented: $showRestoreAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(restoreMessage)
             }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This will permanently delete your account, workspace, and all data associated with it. This action cannot be undone.")
+            .alert("Delete Account", isPresented: $showDeleteAccountAlert) {
+                Button("Delete", role: .destructive) { deleteUserAccount() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will permanently delete all your data. This action cannot be undone.")
+            }
         }
+        
     }
-
 
     private func deleteUserAccount() {
         let container = PersistenceController.shared.container
